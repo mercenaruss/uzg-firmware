@@ -819,12 +819,17 @@ void handleSaveParams()
             if (serverWeb.hasArg(coordMode))
             {
                 const uint8_t mode = serverWeb.arg(coordMode).toInt();
+                DEBUG_PRINTLN(mode);
                 if (mode <= 2 && mode >= zero)
                 {
-                    // ConfigSettings.coordinator_mode = static_cast<COORDINATOR_MODE_t>(mode);
-                    if (mode == 1)
+                    //ConfigSettings.coordinator_mode = static_cast<COORDINATOR_MODE_t>(mode);
+                    if (mode == 1) {
+                        DEBUG_PRINTLN("mode == 1");
                         wifiWebSetupInProgress = true;
+                        }
                     doc[coordMode] = static_cast<COORDINATOR_MODE_t>(mode);
+                    DEBUG_PRINTLN("doc[coordMode]");
+
                 }
             }
             const char *keepWeb = "keepWeb";
@@ -854,6 +859,7 @@ void handleSaveParams()
             {
                 doc[disableLedUSB] = zero;
             }
+            configFile = LittleFS.open(configFileGeneral, FILE_WRITE);
             serializeJson(doc, configFile);
             configFile.close();
         }
