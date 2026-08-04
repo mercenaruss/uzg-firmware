@@ -7,7 +7,6 @@ uint8_t temprature_sens_read();
 #ifdef __cplusplus
 }
 #endif
-uint8_t temprature_sens_read();
 
 
 #define STRINGIFY(s) STRINGIFY1(s) // Don’t ask why. It has to do with the inner workings of the preprocessor.

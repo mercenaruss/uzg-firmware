@@ -126,7 +126,7 @@ void initWebServer()
     serverWeb.on("/js/jquery-min.js", []()
                  { sendGzip(contTypeTextJs, jquery_min_js_gz, jquery_min_js_gz_len); });
     serverWeb.on("/css/required.css", []()
-                 { sendGzip(contTypeTextJs, required_css_gz, required_css_gz_len); });
+                 { sendGzip(contTypeTextCss, required_css_gz, required_css_gz_len); });
     serverWeb.on("/favicon.ico", []()
                  { sendGzip("img/png", favicon_ico_gz, favicon_ico_gz_len); });
     serverWeb.on("/logo.png", []()
@@ -1210,7 +1210,7 @@ void handleWifi()
 
     // doc["pageName"] = "Config WiFi";
     doc["ssid"] = String(ConfigSettings.ssid);
-    doc["passWifi"] = String(ConfigSettings.password);
+    // passWifi is intentionally not echoed to the browser for security
     if (ConfigSettings.dhcpWiFi)
     {
         doc["dchp"] = checked;
@@ -1238,7 +1238,7 @@ void handleSerial()
     }
     else if (ConfigSettings.serialSpeed == 38400)
     {
-        doc["8400"] = checked;
+        doc["38400"] = checked;
     }
     else if (ConfigSettings.serialSpeed == 57600)
     {
