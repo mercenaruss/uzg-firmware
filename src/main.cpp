@@ -1149,7 +1149,7 @@ void setup()
   */
 }
 
-WiFiClient client[10];
+WiFiClient client[MAX_SOCKET_CLIENTS];
 
 void socketClientConnected(int client)
 {

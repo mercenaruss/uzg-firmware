@@ -182,7 +182,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
 {
     char jjson[length + 1];
     memcpy(jjson, payload, length);
-    jjson[length + 1] = '\0';
+    jjson[length] = '\0';
 
     DynamicJsonDocument jsonBuffer(1024);
 
@@ -301,7 +301,7 @@ void mqttPublishDiscovery()
                 buffJson["stat_t"] = mtopic + "/io/rst_esp";
                 buffJson["cmd_t"] = mtopic + "/cmd";
                 buffJson["icon"] = "mdi:restore-alert";
-                buffJson["payload_press"] = "{cmd:\"rst_esp\"}";
+                buffJson["payload_press"] = "{\"cmd\":\"rst_esp\"}";
                 buffJson["avty_t"] = mtopic + "/avty";
                 buffJson["dev"] = dev;
                 break;
@@ -314,7 +314,7 @@ void mqttPublishDiscovery()
                 buffJson["stat_t"] = mtopic + "/io/rst_zig";
                 buffJson["cmd_t"] = mtopic + "/cmd";
                 buffJson["icon"] = "mdi:restart";
-                buffJson["payload_press"] = "{cmd:\"rst_zig\"}";
+                buffJson["payload_press"] = "{\"cmd\":\"rst_zig\"}";
                 buffJson["avty_t"] = mtopic + "/avty";
                 buffJson["dev"] = via;
                 break;
@@ -327,7 +327,7 @@ void mqttPublishDiscovery()
                 buffJson["stat_t"] = mtopic + "/io/enbl_bsl";
                 buffJson["cmd_t"] = mtopic + "/cmd";
                 buffJson["icon"] = "mdi:flash";
-                buffJson["payload_press"] = "{cmd:\"enbl_bsl\"}";
+                buffJson["payload_press"] = "{\"cmd\":\"enbl_bsl\"}";
                 buffJson["avty_t"] = mtopic + "/avty";
                 buffJson["dev"] = via;
                 break;
