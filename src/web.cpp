@@ -288,7 +288,7 @@ void initWebServer()
                 // }
                 // DEBUG_PRINTLN(temp);
 
-                fwFile.write(upload.buf, sizeof(upload.buf));
+                fwFile.write(upload.buf, upload.currentSize);
             }
             else if (upload.status == UPLOAD_FILE_END)
             {
@@ -302,13 +302,15 @@ void initWebServer()
 
                 DEBUG_PRINTLN("Total file size: " + String(upload.totalSize));
 
-                // checkFwHex(tempFile);
-                xTaskCreate(checkFwHexTask,   // Функция задачи
-                            "CheckFWHex",     // Имя задачи для удобства отладки
-                            8192,             // Размер стека задачи (в байтах)
-                            (void *)tempFile, // Параметр, передаваемый в задачу
-                            3,                // Приоритет задачи
-                            NULL);            // Указатель на задачу (не используется)
+                if (xTaskCreate(checkFwHexTask,
+                            "CheckFWHex",
+                            8192,
+                            (void *)tempFile,
+                            3,
+                            NULL) != pdPASS)
+                {
+                    printLogMsg("[ZB_FW] Failed to create flash task");
+                }
             }
         });
 
@@ -334,15 +336,14 @@ void handleEvents()
     }
 }
 
-void sendEvent(const char *event, const uint8_t evsz, const String data)
+void sendEvent(const char *event, const uint8_t evsz, const String &data)
 {
     if (eventsClient)
     {
-        char evnmArr[10 + evsz];
-        sprintf(evnmArr, "event: %s\n", event);
+        char evnmArr[32];
+        snprintf(evnmArr, sizeof(evnmArr), "event: %s\n", event);
         eventsClient.print(evnmArr);
         eventsClient.print(String("data: ") + data + "\n\n");
-        // eventsClient.println();
         eventsClient.flush();
     }
 }
@@ -617,7 +618,14 @@ void handleApi()
             const char *argFilename = "filename";
             if (serverWeb.hasArg(argFilename))
             {
-                String filename = "/config/" + serverWeb.arg(argFilename);
+                String name = serverWeb.arg(argFilename);
+                // Reject any path that tries to traverse outside /config/
+                if (name.indexOf('/') >= 0 || name.indexOf('\\') >= 0 || name.indexOf("..") >= 0)
+                {
+                    serverWeb.send(400, contTypeText, "invalid filename");
+                    return;
+                }
+                String filename = "/config/" + name;
                 File file = LittleFS.open(filename, "r");
                 if (!file)
                     return;
@@ -718,7 +726,7 @@ void handleApi()
             break;
         }
         case API_GET_PAGE:
-            if (!serverWeb.arg(page).length() > 0)
+            if (serverWeb.arg(page).length() == 0)
             {
                 DEBUG_PRINTLN(F("[handleApi] wrong arg 'page'"));
                 DEBUG_PRINTLN(serverWeb.argName(1));
@@ -891,6 +899,7 @@ void handleSaveParams()
             serializeJson(doc, configFile);
             configFile.close();
         }
+        break;
         case API_PAGE_MQTT:
         {
             configFile = LittleFS.open(configFileMqtt, FILE_READ);
@@ -941,7 +950,7 @@ void handleSaveParams()
             deserializeJson(doc, configFile);
             configFile.close();
             doc["localAddr"] = serverWeb.arg("WgLocalAddr");
-            doc["localIP"] = serverWeb.arg("WgLocalPrivKey");
+            doc["localPrivKey"] = serverWeb.arg("WgLocalPrivKey");
             doc["endAddr"] = serverWeb.arg("WgEndAddr");
             doc["endPubKey"] = serverWeb.arg("WgEndPubKey");
             doc["endPort"] = serverWeb.arg("WgEndPort");
@@ -1011,7 +1020,7 @@ void handleSaveParams()
                 doc[baud] = 115200;
             }
             const char *port = "port";
-            if (serverWeb.hasArg(baud))
+            if (serverWeb.hasArg(port))
             {
                 doc[port] = serverWeb.arg(port);
             }
@@ -1096,7 +1105,6 @@ void handleSaveParams()
             {
                 doc[timeZoneName] = serverWeb.arg(timeZoneName);
             }
-            configFile = LittleFS.open(configFileGeneral, FILE_WRITE);
             configFile = LittleFS.open(configFileGeneral, FILE_WRITE);
             serializeJson(doc, configFile);
             configFile.close();
@@ -1184,7 +1192,7 @@ void handleSecurity()
         doc["webAuth"] = checked;
     }
     doc["webUser"] = (String)ConfigSettings.webUser;
-    doc["webPass"] = (String)ConfigSettings.webPass;
+    // webPass is intentionally not echoed to the browser for security
     if (ConfigSettings.fwEnabled)
     {
         doc["fwEnabled"] = checked;
@@ -1285,7 +1293,7 @@ void handleMqtt()
     doc["serverMqtt"] = MqttSettings.server;
     doc["portMqtt"] = MqttSettings.port;
     doc["userMqtt"] = MqttSettings.user;
-    doc["passMqtt"] = MqttSettings.pass;
+    // passMqtt is intentionally not echoed to the browser for security
     doc["topicMqtt"] = MqttSettings.topic;
     doc["intervalMqtt"] = MqttSettings.interval;
 
@@ -1308,7 +1316,7 @@ void handleWg()
         doc["enableWg"] = checked;
     }
     doc["localAddrWg"] = WgSettings.localAddr;
-    doc["localPrivKeyWg"] = WgSettings.localPrivKey;
+    // localPrivKeyWg (private key) is intentionally not echoed to the browser for security
     doc["endAddrWg"] = WgSettings.endAddr;
     doc["endPubKeyWg"] = WgSettings.endPubKey;
     doc["endPortWg"] = WgSettings.endPort;
@@ -1342,12 +1350,12 @@ DynamicJsonDocument getRootData()
     {
         if (ConfigSettings.connectedClients > 1)
         {
-            doc[connectedSocketStatus] = "Yes, " + String(ConfigSettings.connectedClients) + "connection";
+            doc[connectedSocketStatus] = "Yes, " + String(ConfigSettings.connectedClients) + " connections";
             doc[connectedSocket] = readableTime;
         }
         else
         {
-            doc[connectedSocketStatus] = "Yes, " + String(ConfigSettings.connectedClients) + " connections";
+            doc[connectedSocketStatus] = "Yes, " + String(ConfigSettings.connectedClients) + " connection";
             doc[connectedSocket] = readableTime;
         }
     }
@@ -1626,7 +1634,14 @@ void handleSavefile()
         }
         else
         {
-            String filename = "/config/" + serverWeb.arg(0);
+            String name = serverWeb.arg(0);
+            // Reject any path that tries to traverse outside /config/
+            if (name.indexOf('/') >= 0 || name.indexOf('\\') >= 0 || name.indexOf("..") >= 0)
+            {
+                serverWeb.send(400, contTypeText, "invalid filename");
+                return;
+            }
+            String filename = "/config/" + name;
             String content = serverWeb.arg(1);
             File file = LittleFS.open(filename, "w");
             if (!file)
