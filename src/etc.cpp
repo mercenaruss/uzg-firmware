@@ -157,8 +157,8 @@ void ledUSBToggle()
 void getDeviceID(char *arr)
 {
   uint64_t mac = ESP.getEfuseMac();
-  uint8_t a;
-  uint8_t b;
+  uint8_t a = 0;
+  uint8_t b = 0;
   a ^= mac >> 8 * 0;
   a ^= mac >> 8 * 1;
   a ^= mac >> 8 * 2;
@@ -168,34 +168,21 @@ void getDeviceID(char *arr)
   b ^= mac >> 8 * 6;
   b ^= mac >> 8 * 7;
 
-  char buf[20];
+  char lo[3];
+  char hi[3];
 
-  if (a < 16)
-  {
-    sprintf(buf, "0%x", a);
-  }
-  else
-  {
-    sprintf(buf, "%x", a);
-  }
+  snprintf(lo, sizeof(lo), "%02x", a);
+  snprintf(hi, sizeof(hi), "%02x", b);
 
-  if (b < 16)
-  {
-    sprintf(buf, "%s0%x", buf, b);
-  }
-  else
-  {
-    sprintf(buf, "%s%x", buf, b);
-  }
+  char buf[6];
+  snprintf(buf, sizeof(buf), "%s%s", lo, hi);
 
   for (uint8_t cnt = 0; cnt < strlen(buf); cnt++)
   {
     buf[cnt] = toupper(buf[cnt]);
   }
 
-  // char buf[20];
-  sprintf(arr, "%s-%s", deviceModel, buf);
-  // arr = buf;
+  snprintf(arr, 20, "%s-%s", deviceModel, buf);
 }
 
 // void writeDefaultConfig(const char *path, String StringConfig)
@@ -229,37 +216,15 @@ void writeDefaultConfig(const char *path, DynamicJsonDocument &doc)
   if (!configFile)
   {
     DEBUG_PRINTLN(F("Failed Write"));
-    // return false;
+    return;
   }
-  else
-  {
-    serializeJson(doc, configFile);
-  }
+  serializeJson(doc, configFile);
   configFile.close();
 }
 
 String hexToDec(String hexString)
 {
-
-  unsigned int decValue = 0;
-  int nextInt;
-
-  for (int i = 0; i < hexString.length(); i++)
-  {
-
-    nextInt = int(hexString.charAt(i));
-    if (nextInt >= 48 && nextInt <= 57)
-      nextInt = map(nextInt, 48, 57, 0, 9);
-    if (nextInt >= 65 && nextInt <= 70)
-      nextInt = map(nextInt, 65, 70, 10, 15);
-    if (nextInt >= 97 && nextInt <= 102)
-      nextInt = map(nextInt, 97, 102, 10, 15);
-    nextInt = constrain(nextInt, 0, 15);
-
-    decValue = (decValue * 16) + nextInt;
-  }
-
-  return String(decValue);
+  return String(strtoul(hexString.c_str(), nullptr, 16));
 }
 
 void resetSettings()
@@ -294,12 +259,11 @@ void setClock()
   configTime(0, 0, "pool.ntp.org", "time.google.com");
 
   DEBUG_PRINT(F("Waiting for NTP time sync: "));
-  int startTryingTime = millis();
-  DEBUG_PRINTLN(startTryingTime);
-  startTryingTime = startTryingTime / 1000;
+  const unsigned long ntpWaitStart = millis();
   time_t nowSecs = time(nullptr);
   DEBUG_PRINTLN(nowSecs);
-  while ((nowSecs - startTryingTime) < 60)
+  // Wait up to 60 seconds for a valid (post-2020) timestamp
+  while (nowSecs < 1580000000UL && (millis() - ntpWaitStart) < 60000UL)
   {
     delay(500);
     DEBUG_PRINT(F("."));
@@ -313,8 +277,8 @@ void setClock()
   DEBUG_PRINT(F("Current GMT time: "));
   DEBUG_PRINT(asctime(&timeinfo));
 
-  char *zoneToFind = const_cast<char *>("Europe/Kiev");
-  if (ConfigSettings.timeZone)
+  const char *zoneToFind = "Europe/Kiev";
+  if (ConfigSettings.timeZone[0] != '\0')
   {
     zoneToFind = ConfigSettings.timeZone;
   }

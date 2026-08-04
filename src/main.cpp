@@ -35,9 +35,9 @@ zbVerStruct zbVer;
 MqttSettingsStruct MqttSettings;
 WgSettingsStruct WgSettings;
 
-// volatile bool btnFlag = false;
-int btnFlag = false;
+volatile bool btnFlag = false;
 bool updWeb = false;
+volatile bool needSetClock = false; // set in network event handler, processed in main loop
 
 void mDNS_start();
 void connectWifi();
@@ -224,9 +224,7 @@ void NetworkEvent(WiFiEvent_t event)
     DEBUG_PRINT(ETH.linkSpeed());
     DEBUG_PRINTLN(F("Mbps"));
     ConfigSettings.connectedEther = true;
-    // ConfigSettings.disconnectEthTime = 0;
-    // mDNS_start();
-    setClock();
+    needSetClock = true;
     break;
   case ARDUINO_EVENT_ETH_DISCONNECTED: // 21:  //SYSTEM_EVENT_ETH_DISCONNECTED:
     DEBUG_PRINTLN(F("ETH Disconnected"));
@@ -255,7 +253,7 @@ void NetworkEvent(WiFiEvent_t event)
     DEBUG_PRINT(WiFi.subnetMask().toString());
     DEBUG_PRINT(F(", "));
     DEBUG_PRINTLN(WiFi.gatewayIP().toString());
-    setClock();
+    needSetClock = true;
     break;
   case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: // SYSTEM_EVENT_STA_DISCONNECTED:
     DEBUG_PRINTLN(F("WIFI STA DISCONNECTED"));
@@ -288,6 +286,10 @@ IPAddress parse_ip_address(const char *str)
       if (index < 4)
       {
         result[index] = 0;
+      }
+      else
+      {
+        break; // more than 4 octets — stop parsing
       }
     }
     str++;
@@ -454,13 +456,9 @@ bool loadConfigGeneral()
   const char *keepWeb = "keepWeb";
   const char *timeZoneName = "timeZoneName";
   File configFile = LittleFS.open(configFileGeneral, FILE_READ);
-  DEBUG_PRINTLN(configFile.readString());
   if (!configFile)
   {
-    // String deviceID = deviceModel;
-    // getDeviceID(deviceID);
     DEBUG_PRINTLN("RESET ConfigGeneral");
-    // String StringConfig = "{\"hostname\":\"" + deviceID + "\",\"disableLeds\": false,\"refreshLogs\":1000,\"usbMode\":0,\"disableLedPwr\":0,\"disableLedUSB\":0,\""+ coordMode +"\":0}\""+ prevCoordMode +"\":0, \"keepWeb\": 0}";
     DynamicJsonDocument doc(1024);
     doc[hostname] = deviceModel;
     doc[disableLeds] = 0;
@@ -661,7 +659,7 @@ bool loadConfigWg()
 {
   const char *enable = "enable";
   const char *localAddr = "localAddr";
-  const char *localIP = "localIP";
+  const char *localPrivKey = "localPrivKey";
   const char *endAddr = "endAddr";
   const char *endPubKey = "endPubKey";
   const char *endPort = "endPort";
@@ -672,7 +670,7 @@ bool loadConfigWg()
     DynamicJsonDocument doc(1024);
     doc[enable] = 0;
     doc[localAddr] = "";
-    doc[localIP] = "";
+    doc[localPrivKey] = "";
     doc[endAddr] = "";
     doc[endPubKey] = "";
     doc[endPort] = "";
@@ -697,7 +695,7 @@ bool loadConfigWg()
   strlcpy(WgSettings.localAddr, doc[localAddr] | "", sizeof(WgSettings.localAddr));
   WgSettings.localIP = parse_ip_address(WgSettings.localAddr);
 
-  strlcpy(WgSettings.localPrivKey, doc[localIP] | "", sizeof(WgSettings.localPrivKey));
+  strlcpy(WgSettings.localPrivKey, doc[localPrivKey] | "", sizeof(WgSettings.localPrivKey));
   strlcpy(WgSettings.endAddr, doc[endAddr] | "", sizeof(WgSettings.endAddr));
   strlcpy(WgSettings.endPubKey, doc[endPubKey] | "", sizeof(WgSettings.endPubKey));
   WgSettings.endPort = (int)doc[endPort];
@@ -771,7 +769,7 @@ void connectWifi()
   }
   WiFi.persistent(false);
   esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B);
-  if ((strlen(ConfigSettings.ssid) >= 2) && (strlen(ConfigSettings.password) >= 8))
+  if (strlen(ConfigSettings.ssid) >= 2)
   {
     DEBUG_PRINTLN(F("[connectWifi] Ok SSID & PASS"));
     if (ConfigSettings.apStarted)
@@ -1375,6 +1373,12 @@ void loop(void)
     {
       mqttLoop();
     }
+  }
+
+  if (needSetClock)
+  {
+    needSetClock = false;
+    setClock();
   }
 
   if (WiFi.getMode() == WIFI_MODE_AP || WiFi.getMode() == WIFI_MODE_APSTA)

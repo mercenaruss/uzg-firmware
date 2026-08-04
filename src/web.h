@@ -22,7 +22,7 @@ void printLogMsg(String msg);
 void handleSaveParams();
 bool checkAuth();
 
-void sendEvent(const char *event, const uint8_t evsz, const String data);
+void sendEvent(const char *event, const uint8_t evsz, const String &data);
 void progressFunc(unsigned int progress, unsigned int total);
 
 void getEspUpdate(String esp_fw_url);
